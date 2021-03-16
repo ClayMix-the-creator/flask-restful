@@ -1,23 +1,30 @@
 # Импорт модулей для работы с Flask
-from flask import Flask, render_template, request, make_response, session, redirect, abort, jsonify
+from flask import Flask, render_template, request, make_response, session, redirect
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_wtf import FlaskForm
 from wtforms import PasswordField, BooleanField, SubmitField
 from wtforms.validators import DataRequired
 from wtforms.fields.html5 import EmailField
+from flask_restful import abort, Api
 
 # Импорт фалов, которые находятся в папках
-from data import db_session, news_api
+from data import db_session, news_api, news_resources
 from data.users import User
 from data.news import News
 from forms.user import RegisterForm
 from forms.news import NewsForm
 
 # Экстра-импорты
-import os.path
 import datetime
 
 app = Flask(__name__)
+api = Api(app)
+
+# для списка объектов
+api.add_resource(news_resources.NewsListResource, '/api/v2/news')
+
+# для одного объекта
+api.add_resource(news_resources.NewsResource, '/api/v2/news/<int:news_id>')
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -33,11 +40,6 @@ class LoginForm(FlaskForm):
     submit = SubmitField('Войти')
 
 
-@app.errorhandler(404)
-def not_found(error):
-    return make_response(jsonify({'error': 'Not found'}), 404)
-
-
 @app.route("/")
 def index():
     db_sess = db_session.create_session()
@@ -47,7 +49,6 @@ def index():
     else:
         news = db_sess.query(News).filter(News.is_private != True)
     return render_template("index.html", news=news)
-
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -127,7 +128,7 @@ def logout():
     return redirect("/")
 
 
-@app.route('/news',  methods=['GET', 'POST'])
+@app.route('/news', methods=['GET', 'POST'])
 @login_required
 def add_news():
     form = NewsForm()
@@ -195,9 +196,6 @@ def news_delete(id):
 
 
 def main():
-    if os.path.exists('db/blogs.sqlite'):
-        os.remove('db/blogs.sqlite')
-
     db_session.global_init("db/blogs.sqlite")
     app.register_blueprint(news_api.blueprint)
     app.run()
